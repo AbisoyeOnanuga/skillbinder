@@ -27,3 +27,14 @@ def scrape_job_titles(url):
 # Example usage
 job_url = "https://jobs.rogers.com/search/?createNewAlert=false&q=Toronto"
 print(scrape_job_titles(job_url))
+
+def match_jobs_to_skills(job_titles, skills):
+    # Simple keyword matching
+    matching_jobs = [job for job in job_titles if any(skill.lower() in job.lower() for skill in skills)]
+    return matching_jobs
+
+# Example usage
+job_titles = ["Python Developer", "Machine Learning Engineer", "Data Analyst"]
+skills = ["Python", "Data Analysis"]
+print(match_jobs_to_skills(job_titles, skills))
+# Output: ['Python Developer', 'Data Analyst']
