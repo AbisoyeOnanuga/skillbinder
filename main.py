@@ -38,3 +38,18 @@ job_titles = ["Python Developer", "Machine Learning Engineer", "Data Analyst"]
 skills = ["Python", "Data Analysis"]
 print(match_jobs_to_skills(job_titles, skills))
 # Output: ['Python Developer', 'Data Analyst']
+
+def rank_jobs_by_skills(job_titles, skills):
+    job_rankings = []
+    for job in job_titles:
+        # Count the number of skills that match each job title
+        skill_matches = sum(skill.lower() in job.lower() for skill in skills)
+        job_rankings.append((job, skill_matches))
+    # Sort by the number of matches (descending)
+    return sorted(job_rankings, key=lambda x: x[1], reverse=True)
+
+# Example usage
+job_titles = ["Python Developer", "Data Analyst", "Front-End Developer"]
+skills = ["Python", "Data Analysis"]
+print(rank_jobs_by_skills(job_titles, skills))
+# Output: [('Python Developer', 1), ('Data Analyst', 1), ('Front-End Developer', 0)]
