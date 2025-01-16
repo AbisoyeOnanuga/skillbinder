@@ -53,3 +53,27 @@ job_titles = ["Python Developer", "Data Analyst", "Front-End Developer"]
 skills = ["Python", "Data Analysis"]
 print(rank_jobs_by_skills(job_titles, skills))
 # Output: [('Python Developer', 1), ('Data Analyst', 1), ('Front-End Developer', 0)]
+
+import streamlit as st
+
+st.title("Skill Binder")
+st.write("Find jobs that match your skills!")
+
+# Resume upload
+uploaded_file = st.file_uploader("Upload your resume (text file only)", type=["txt"])
+if uploaded_file:
+    resume_text = uploaded_file.read().decode("utf-8")
+
+# Job page URL input
+job_url = st.text_input("Enter the job search page URL:")
+
+# Process inputs
+if st.button("Find Matching Jobs"):
+    if uploaded_file and job_url:
+        skills = extract_skills(resume_text, ["Python", "Data Analysis", "Web Development"])  # Example skills
+        job_titles = scrape_job_titles(job_url)
+        matched_jobs = match_jobs_to_skills(job_titles, skills)
+        st.write("Matched Jobs:")
+        st.write(matched_jobs)
+    else:
+        st.warning("Please provide both a resume and a job page URL.")
