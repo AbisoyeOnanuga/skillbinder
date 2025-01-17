@@ -3,63 +3,132 @@ import requests
 from bs4 import BeautifulSoup
 import streamlit as st
 
+# Define job categories and keywords
+categories = {
+    "Technology": ["technology", "tech", "developer", "python", "web development", "agile", "broadcast"],
+    "Sales": ["sales", "associate", "communication", "strategist", "client management"],
+    "Broadcasting & News": ["broadcast", "news", "media", "reporter", "content creator", "director"],
+    "General": ["coach", "assistant", "manager", "writer", "producer", "store manager"]
+}
+
+# General keywords for fallback inclusion
+general_keywords = ["assistant", "coach", "sales", "content creator", "producer", "writer"]
+
+# Function to scrape job titles from the provided job search URL
 def scrape_job_titles(url):
-    # Send a GET request to the page
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
+    try:
+        # Send a GET request to the page
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # Extract job details (adjust selector based on website structure)
+        jobs = []
+        for row in soup.find_all("tr", class_="data-row"):  # Example row structure
+            cells = row.find_all("td")
+            if len(cells) >= 3:
+                job_title = cells[0].get_text(strip=True)
+                location = cells[1].get_text(strip=True)
+                date = cells[2].get_text(strip=True)
+                jobs.append({"title": job_title, "location": location, "date": date})
+        return jobs
+    except Exception as e:
+        st.error(f"Error scraping job titles: {e}")
+        return []
+
+# Function to extract skills and keywords from the resume
+def extract_keywords(resume_text, categories):
+    # Lowercase the text for consistent matching
+    resume_text = resume_text.lower()
     
-    # Extract job titles (modify selectors based on the website structure)
-    job_titles = [job.get_text() for job in soup.find_all("h2", class_="job-title")]
-    return job_titles
+    # Combine all keywords from selected categories
+    all_keywords = [keyword.lower() for category_keywords in categories.values() for keyword in category_keywords]
+    
+    # Match keywords in the resume
+    matched_keywords = [keyword for keyword in all_keywords if keyword in resume_text]
+    return matched_keywords
 
-# Example usage
-job_url = "https://jobs.rogers.com/search/?createNewAlert=false&q=Toronto"
-print(scrape_job_titles(job_url))
+# Function to match job titles with selected categories and keywords
+def match_jobs_to_categories(jobs, categories, selected_categories, general_keywords):
+    matched_jobs = []
+    selected_keywords = [keyword.lower() for category in selected_categories for keyword in categories[category]]
+    
+    for job in jobs:
+        title = job["title"].lower()
+        
+        # Match with selected categories
+        if any(keyword in title for keyword in selected_keywords):
+            matched_jobs.append({**job, "category": ", ".join(selected_categories)})
+        
+        # Include general roles if no specific match
+        elif any(keyword in title for keyword in general_keywords):
+            matched_jobs.append({**job, "category": "General"})
+    
+    return matched_jobs
 
-def match_jobs_to_skills(job_titles, skills):
-    # Simple keyword matching
-    matching_jobs = [job for job in job_titles if any(skill.lower() in job.lower() for skill in skills)]
-    return matching_jobs
+# Function to rank jobs based on skills and selected categories
+def rank_jobs(jobs, skills, selected_categories, categories):
+    ranked_jobs = []
+    selected_keywords = [keyword.lower() for category in selected_categories for keyword in categories[category]]
+    
+    for job in jobs:
+        title = job["title"].lower()
+        score = 0
+        
+        # Score for category matches
+        score += sum(keyword in title for keyword in selected_keywords)
+        
+        # Score for skill matches
+        score += sum(skill.lower() in title for skill in skills)
+        
+        ranked_jobs.append({**job, "score": score})
+    
+    # Sort jobs by score in descending order
+    return sorted(ranked_jobs, key=lambda x: x["score"], reverse=True)
 
-# Example usage
-job_titles = ["Python Developer", "Machine Learning Engineer", "Data Analyst"]
-skills = ["Python", "Data Analysis"]
-print(match_jobs_to_skills(job_titles, skills))
-# Output: ['Python Developer', 'Data Analyst']
+# Streamlit app interface
+st.title("Skill Binder - Job Matching Tool")
+st.write("Find jobs that match your skills and interests!")
 
-def rank_jobs_by_skills(job_titles, skills):
-    job_rankings = []
-    for job in job_titles:
-        # Count the number of skills that match each job title
-        skill_matches = sum(skill.lower() in job.lower() for skill in skills)
-        job_rankings.append((job, skill_matches))
-    # Sort by the number of matches (descending)
-    return sorted(job_rankings, key=lambda x: x[1], reverse=True)
-
-# Example usage
-job_titles = ["Python Developer", "Data Analyst", "Front-End Developer"]
-skills = ["Python", "Data Analysis"]
-print(rank_jobs_by_skills(job_titles, skills))
-# Output: [('Python Developer', 1), ('Data Analyst', 1), ('Front-End Developer', 0)]
-
-st.title("Skill Binder")
-st.write("Find jobs that match your skills!")
-
-# Resume upload
+# Upload resume file
 uploaded_file = st.file_uploader("Upload your resume (text file only)", type=["txt"])
 if uploaded_file:
+    # Decode the resume text
     resume_text = uploaded_file.read().decode("utf-8")
+    
+    # Extract skills and keywords from the resume
+    st.write("Processing your resume...")
+    extracted_skills = extract_keywords(resume_text, categories)
+    st.write("Extracted Skills & Keywords:", extracted_skills)
 
-# Job page URL input
+# User-selected categories
+selected_categories = st.multiselect(
+    "Select categories to prioritize:",
+    options=list(categories.keys()),
+    default=["Technology", "Sales", "Broadcasting & News"]  # Default user interests
+)
+
+# Job search page URL input
 job_url = st.text_input("Enter the job search page URL:")
 
-# Process inputs
+# Process inputs and find matching jobs
 if st.button("Find Matching Jobs"):
     if uploaded_file and job_url:
-        skills = extract_skills(resume_text, ["Python", "Data Analysis", "Web Development"])  # Example skills
-        job_titles = scrape_job_titles(job_url)
-        matched_jobs = match_jobs_to_skills(job_titles, skills)
-        st.write("Matched Jobs:")
-        st.write(matched_jobs)
+        # Scrape jobs from the provided URL
+        st.write("Scraping jobs from the provided URL...")
+        jobs = scrape_job_titles(job_url)
+        
+        if not jobs:
+            st.warning("No jobs found or failed to scrape the job page. Please check the URL.")
+        else:
+            # Match jobs to selected categories
+            matched_jobs = match_jobs_to_categories(jobs, categories, selected_categories, general_keywords)
+            
+            # Rank matched jobs by skills and selected categories
+            ranked_jobs = rank_jobs(matched_jobs, extracted_skills, selected_categories, categories)
+            
+            # Display ranked results
+            st.write("Matched & Ranked Jobs:")
+            for job in ranked_jobs:
+                st.write(f"**{job['title']}** ({job['category']}) - {job['location']} - {job['date']} [Score: {job['score']}]")
     else:
-        st.warning("Please provide both a resume and a job page URL.")
+        st.warning("Please upload a resume and provide a job page URL.")
