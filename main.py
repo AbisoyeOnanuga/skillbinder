@@ -14,26 +14,36 @@ categories = {
 # General keywords for fallback inclusion
 general_keywords = ["assistant", "coach", "sales", "content creator", "producer", "writer"]
 
-# Function to scrape job titles from the provided job search URL
-def scrape_job_titles(url):
-    try:
-        # Send a GET request to the page
+# Function to scrape all job listings across all pages
+def scrape_all_pages(base_url):
+    jobs = []
+    page = 1  # Start with the first page
+    
+    while True:
+        # Generate the URL for the current page
+        url = f"{base_url}&page={page}"  # Append page number if the site uses pagination
         response = requests.get(url)
         soup = BeautifulSoup(response.text, "html.parser")
         
         # Extract job details (adjust selector based on website structure)
-        jobs = []
-        for row in soup.find_all("tr", class_="data-row"):  # Example row structure
+        page_jobs = []
+        for row in soup.find_all("tr", class_="data-row"):  # Adjust selector as needed
             cells = row.find_all("td")
             if len(cells) >= 3:
                 job_title = cells[0].get_text(strip=True)
                 location = cells[1].get_text(strip=True)
                 date = cells[2].get_text(strip=True)
-                jobs.append({"title": job_title, "location": location, "date": date})
-        return jobs
-    except Exception as e:
-        st.error(f"Error scraping job titles: {e}")
-        return []
+                page_jobs.append({"title": job_title, "location": location, "date": date})
+        
+        # Break the loop if no more jobs are found
+        if not page_jobs:
+            break
+        
+        # Add the jobs from the current page to the overall list
+        jobs.extend(page_jobs)
+        page += 1  # Move to the next page
+    
+    return jobs
 
 # Function to extract skills and keywords from the resume
 def extract_keywords(resume_text, categories):
@@ -113,9 +123,9 @@ job_url = st.text_input("Enter the job search page URL:")
 # Process inputs and find matching jobs
 if st.button("Find Matching Jobs"):
     if uploaded_file and job_url:
-        # Scrape jobs from the provided URL
+        # Scrape jobs from all pages of the provided URL
         st.write("Scraping jobs from the provided URL...")
-        jobs = scrape_job_titles(job_url)
+        jobs = scrape_all_pages(job_url)
         
         if not jobs:
             st.warning("No jobs found or failed to scrape the job page. Please check the URL.")
