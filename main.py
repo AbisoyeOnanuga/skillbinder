@@ -20,28 +20,35 @@ def scrape_all_pages(base_url):
     page = 1  # Start with the first page
     
     while True:
-        # Generate the URL for the current page
-        url = f"{base_url}&page={page}"  # Append page number if the site uses pagination
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
+        try:
+            # Generate the URL for the current page
+            url = f"{base_url}&page={page}"  # Adjust pagination logic if needed
+            response = requests.get(url, timeout=10)  # Set a timeout for requests
+            response.raise_for_status()  # Raise HTTP errors if any
+            soup = BeautifulSoup(response.text, "html.parser")
+            
+            # Extract job details (adjust selector based on website structure)
+            page_jobs = []
+            for row in soup.find_all("tr", class_="data-row"):  # Adjust selector as needed
+                cells = row.find_all("td")
+                if len(cells) >= 3:
+                    job_title = cells[0].get_text(strip=True)
+                    location = cells[1].get_text(strip=True)
+                    date = cells[2].get_text(strip=True)
+                    page_jobs.append({"title": job_title, "location": location, "date": date})
+            
+            # Break the loop if no jobs are found on this page
+            if not page_jobs:
+                break
+            
+            # Add the jobs from the current page to the overall list
+            jobs.extend(page_jobs)
+            page += 1  # Move to the next page
         
-        # Extract job details (adjust selector based on website structure)
-        page_jobs = []
-        for row in soup.find_all("tr", class_="data-row"):  # Adjust selector as needed
-            cells = row.find_all("td")
-            if len(cells) >= 3:
-                job_title = cells[0].get_text(strip=True)
-                location = cells[1].get_text(strip=True)
-                date = cells[2].get_text(strip=True)
-                page_jobs.append({"title": job_title, "location": location, "date": date})
-        
-        # Break the loop if no more jobs are found
-        if not page_jobs:
+        except requests.exceptions.RequestException as e:
+            # Handle connection errors or timeout gracefully
+            st.error(f"Error scraping page {page}: {e}")
             break
-        
-        # Add the jobs from the current page to the overall list
-        jobs.extend(page_jobs)
-        page += 1  # Move to the next page
     
     return jobs
 
