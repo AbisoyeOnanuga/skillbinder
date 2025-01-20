@@ -17,12 +17,12 @@ general_keywords = ["assistant", "coach", "sales", "content creator", "producer"
 # Function to scrape all job listings across all pages
 def scrape_all_pages(base_url):
     jobs = []
-    page = 1  # Start with the first page
+    startrow = 0  # Start from the first row
     
     while True:
         try:
             # Generate the URL for the current page
-            url = f"{base_url}&page={page}"  # Adjust pagination logic if needed
+            url = f"{base_url}&startrow={startrow}" if startrow > 0 else base_url
             response = requests.get(url, timeout=10)  # Set a timeout for requests
             response.raise_for_status()  # Raise HTTP errors if any
             soup = BeautifulSoup(response.text, "html.parser")
@@ -37,17 +37,17 @@ def scrape_all_pages(base_url):
                     date = cells[2].get_text(strip=True)
                     page_jobs.append({"title": job_title, "location": location, "date": date})
             
-            # Break the loop if no jobs are found on this page
+            # Break the loop if no more jobs are found on this page
             if not page_jobs:
                 break
             
             # Add the jobs from the current page to the overall list
             jobs.extend(page_jobs)
-            page += 1  # Move to the next page
+            startrow += 25  # Increment startrow to fetch the next batch of jobs
         
         except requests.exceptions.RequestException as e:
             # Handle connection errors or timeout gracefully
-            st.error(f"Error scraping page {page}: {e}")
+            st.error(f"Error scraping jobs starting from row {startrow}: {e}")
             break
     
     return jobs
