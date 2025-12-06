@@ -1,17 +1,31 @@
 import requests
 from bs4 import BeautifulSoup
 
-base_url = "https://cibc.wd3.myworkdayjobs.com/en-US/search"
-
-# Step 1: Get job list
-resp = requests.get(base_url)
-soup = BeautifulSoup(resp.text, "html.parser")
+# Base search URL filtered for your location
+base_url = "https://cibc.wd3.myworkdayjobs.com/en-US/search?Country=a30a87ed25634629aa6c3958aa2b91ea&City=5a781e4ad9710113e8f4efbb1701cf1a"
 
 jobs = []
-for job_link in soup.select("a[href*='details']"):
-    title = job_link.get_text(strip=True)
-    link = job_link["href"]
-    jobs.append({"title": title, "link": link})
+url = base_url
+
+while url:
+    # Step 1: Get job list for current page
+    resp = requests.get(url)
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Collect job titles + links
+    for job_link in soup.select("a[href*='details']"):
+        title = job_link.get_text(strip=True)
+        link = job_link["href"]
+        if not link.startswith("http"):
+            link = "https://cibc.wd3.myworkdayjobs.com" + link
+        jobs.append({"title": title, "link": link})
+
+    # Step 1b: Find "Next" page link
+    next_link = soup.select_one("a[aria-label='Next']")
+    if next_link and "href" in next_link.attrs:
+        url = "https://cibc.wd3.myworkdayjobs.com" + next_link["href"]
+    else:
+        url = None  # no more pages
 
 # Step 2: Filter by title keywords
 title_keywords = ["IT", "Support", "Analyst", "Admin", "Design"]
@@ -27,4 +41,6 @@ for job in filtered:
     if any(k.lower() in description.lower() for k in detail_keywords):
         final_jobs.append(job)
 
-print(final_jobs)
+print(f"Found {len(final_jobs)} matching jobs:")
+for job in final_jobs:
+    print(job)
