@@ -1,15 +1,29 @@
 import requests
 
-# Workday JSON API endpoint (behind the scenes)
-base_url = "https://cibc.wd3.myworkdayjobs.com/wday/cxs/cibc/search/jobs"
+url = "https://cibc.wd3.myworkdayjobs.com/wday/cxs/cibc/search/jobs"
+
+headers = {
+    "Accept": "application/json",
+    "User-Agent": "Mozilla/5.0"
+}
+
+payload = {
+    "limit": 20,
+    "offset": 0,
+    "searchText": "",
+    "appliedFacets": {
+        "Country": ["a30a87ed25634629aa6c3958aa2b91ea"],
+        "City": ["5a781e4ad9710113e8f4efbb1701cf1a"]
+    }
+}
 
 jobs = []
 offset = 0
 limit = 20
 
-# Collect all jobs by paging until no more results
 while True:
-    resp = requests.get(f"{base_url}?limit={limit}&offset={offset}")
+    payload["offset"] = offset
+    resp = requests.post(url, headers=headers, json=payload)
     data = resp.json()
     postings = data.get("jobPostings", [])
     if not postings:
@@ -23,7 +37,6 @@ while True:
 
     offset += limit
 
-# Scoring function
 def score_job(job):
     title = job["title"].lower()
     desc = job["description"].lower()
@@ -45,11 +58,9 @@ def score_job(job):
 
     return score
 
-# Apply scoring
 scored_jobs = [(job, score_job(job)) for job in jobs]
 scored_jobs = sorted(scored_jobs, key=lambda x: x[1], reverse=True)
 
-# Show only jobs with positive scores
 final_jobs = [job for job, score in scored_jobs if score > 0]
 
 print(f"Found {len(final_jobs)} matching jobs:")
