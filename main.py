@@ -1,13 +1,17 @@
 import requests
+from concurrent.futures import ThreadPoolExecutor
+import math
 
-url = "https://cibc.wd3.myworkdayjobs.com/wday/cxs/cibc/search/jobs"
+# Workday API endpoint
+API_URL = "https://cibc.wd3.myworkdayjobs.com/wday/cxs/cibc/search/jobs"
 
-headers = {
+HEADERS = {
     "Accept": "application/json",
     "User-Agent": "Mozilla/5.0"
 }
 
-payload = {
+# Payload with filters (Toronto, Canada)
+BASE_PAYLOAD = {
     "limit": 20,
     "offset": 0,
     "searchText": "",
@@ -17,52 +21,72 @@ payload = {
     }
 }
 
-jobs = []
-offset = 0
-limit = 20
-
-while True:
-    payload["offset"] = offset
-    resp = requests.post(url, headers=headers, json=payload)
-    data = resp.json()
-    postings = data.get("jobPostings", [])
-    if not postings:
-        break
-
-    for job in postings:
-        title = job["title"]
-        description = job.get("description", "")
-        link = "https://cibc.wd3.myworkdayjobs.com/en-US/search" + job["externalPath"]
-        jobs.append({"title": title, "link": link, "description": description})
-
-    offset += limit
-
+# Scoring function
 def score_job(job):
     title = job["title"].lower()
-    desc = job["description"].lower()
+    desc = job.get("description", "").lower()
     score = 0
 
     # Positive signals
-    if any(k in title for k in ["it", "support", "analyst", "admin"]):
+    if any(k in title for k in ["it", "support", "analyst", "admin", "consultant", "design"]):
         score += 3
-    if "certificate" in desc or "entry level" in desc or "helpdesk" in desc:
+    if "certificate" in desc or "entry" in desc or "associate" in desc or "junior" in desc or "1-2 years" in desc or "helpdesk" in desc:
         score += 2
     if "figma" in desc or "design software" in desc:
         score += 1
 
     # Negative signals
-    if any(k in title for k in ["senior", "manager", "director", "lead"]):
-        score -= 3
-    if "5+ years" in desc or "advanced sql" in desc or "bi tools" in desc:
+    if any(k in title for k in ["senior","sr", "manager", "director", "lead"]):
+        score -= 1
+    if "5+ years" in desc or "advanced" in desc or "bi tools" in desc:
         score -= 2
 
     return score
 
-scored_jobs = [(job, score_job(job)) for job in jobs]
-scored_jobs = sorted(scored_jobs, key=lambda x: x[1], reverse=True)
+# Fetch one page of jobs
+def fetch_page(offset, limit=20):
+    payload = BASE_PAYLOAD.copy()
+    payload["offset"] = offset
+    payload["limit"] = limit
+    resp = requests.post(API_URL, headers=HEADERS, json=payload)
+    data = resp.json()
+    return data.get("jobPostings", [])
 
-final_jobs = [job for job, score in scored_jobs if score > 0]
+# Main pipeline
+def main():
+    # First request to get total jobs
+    resp = requests.post(API_URL, headers=HEADERS, json=BASE_PAYLOAD)
+    data = resp.json()
+    total = data.get("total", 0)
+    print(f"Total jobs found: {total}")
 
-print(f"Found {len(final_jobs)} matching jobs:")
-for job in final_jobs:
-    print(job["title"], job["link"])
+    # Calculate how many pages
+    pages = math.ceil(total / BASE_PAYLOAD["limit"])
+    offsets = [i * BASE_PAYLOAD["limit"] for i in range(pages)]
+
+    jobs = []
+    # Fetch pages in parallel
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        for postings in executor.map(fetch_page, offsets):
+            for job in postings:
+                title = job["title"]
+                description = job.get("description", "")
+                link = "https://cibc.wd3.myworkdayjobs.com/en-US/search" + job["externalPath"]
+                score = score_job(job)
+                jobs.append({"title": title, "link": link, "score": score})
+
+                # Print progress inline
+                print(f"Processed: {title} (score {score})")
+
+    # Sort by score
+    ranked = sorted(jobs, key=lambda j: j["score"], reverse=True)
+
+    # Show only positive matches
+    final = [j for j in ranked if j["score"] > 0]
+
+    print(f"\nFinal shortlist ({len(final)} jobs):")
+    for job in final:
+        print(f"{job['title']} | Score: {job['score']} | {job['link']}")
+
+if __name__ == "__main__":
+    main()
