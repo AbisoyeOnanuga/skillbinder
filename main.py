@@ -28,15 +28,15 @@ def score_job(job):
     score = 0
 
     # Positive signals
-    if any(k in title for k in ["it", "support", "analyst", "admin", "consultant", "design"]):
+    if any(k in title for k in ["it", "support", "analyst", "administrator", "admin", "consultant", "design"]):
         score += 3
-    if "certificate" in desc or "entry" in desc or "associate" in desc or "junior" in desc or "1-2 years" in desc or "helpdesk" in desc:
+    if "certificate" in desc or "entry" in desc or "associate" in desc or "junior" in desc or "helpdesk" in desc or "technical support" in desc:
         score += 2
-    if "figma" in desc or "design software" in desc:
+    if "Figma" in desc or "design" in desc or "1-2 years" in desc or "equivalent" in desc:
         score += 1
 
     # Negative signals
-    if any(k in title for k in ["senior","sr", "manager", "director", "lead"]):
+    if any(k in title for k in ["Senior","Sr.", "Manager", "Director", "Lead"]):
         score -= 1
     if "5+ years" in desc or "advanced" in desc or "bi tools" in desc:
         score -= 2
